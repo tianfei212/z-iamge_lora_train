@@ -40,11 +40,60 @@ def launch_training_task(
                     loss = model(data)
                 accelerator.backward(loss)
                 optimizer.step()
-                model_logger.on_step_end(accelerator, model, save_steps)
                 scheduler.step()
+                loss_tensor = loss.detach().float()
+                if hasattr(accelerator, "gather_for_metrics"):
+                    loss_for_metrics = accelerator.gather_for_metrics(loss_tensor).mean().item()
+                else:
+                    loss_for_metrics = accelerator.gather(loss_tensor).mean().item()
+                lr = float(optimizer.param_groups[0].get("lr", learning_rate))
+                save_info = model_logger.on_step_end(
+                    accelerator,
+                    model,
+                    save_steps,
+                    logs={"epoch": epoch_id, "loss": loss_for_metrics, "lr": lr},
+                )
+                if save_info.get("saved") and args is not None:
+                    sample_num_images = getattr(args, "sample_num_images", 0)
+                    if sample_num_images is not None and int(sample_num_images) > 0:
+                        accelerator.wait_for_everyone()
+                        unwrapped_model = accelerator.unwrap_model(model)
+                        if hasattr(unwrapped_model, "sample_and_save") and accelerator.is_main_process:
+                            unwrapped_model.sample_and_save(
+                                dataset=dataset,
+                                output_path=model_logger.output_path,
+                                step=save_info.get("step"),
+                                sample_num_images=int(sample_num_images),
+                                sample_seed=getattr(args, "sample_seed", 0),
+                                sample_inference_steps=getattr(args, "sample_inference_steps", 8),
+                                sample_denoising_strength=getattr(args, "sample_denoising_strength", 1.0),
+                                sample_cfg_scale=getattr(args, "sample_cfg_scale", 1.0),
+                                sample_negative_prompt=getattr(args, "sample_negative_prompt", ""),
+                                sample_subdir=getattr(args, "sample_subdir", "samples"),
+                            )
+                        accelerator.wait_for_everyone()
         if save_steps is None:
             model_logger.on_epoch_end(accelerator, model, epoch_id)
-    model_logger.on_training_end(accelerator, model, save_steps)
+    end_info = model_logger.on_training_end(accelerator, model, save_steps)
+    if end_info.get("saved") and args is not None:
+        sample_num_images = getattr(args, "sample_num_images", 0)
+        if sample_num_images is not None and int(sample_num_images) > 0:
+            accelerator.wait_for_everyone()
+            unwrapped_model = accelerator.unwrap_model(model)
+            if hasattr(unwrapped_model, "sample_and_save") and accelerator.is_main_process:
+                unwrapped_model.sample_and_save(
+                    dataset=dataset,
+                    output_path=model_logger.output_path,
+                    step=end_info.get("step"),
+                    sample_num_images=int(sample_num_images),
+                    sample_seed=getattr(args, "sample_seed", 0),
+                    sample_inference_steps=getattr(args, "sample_inference_steps", 8),
+                    sample_denoising_strength=getattr(args, "sample_denoising_strength", 1.0),
+                    sample_cfg_scale=getattr(args, "sample_cfg_scale", 1.0),
+                    sample_negative_prompt=getattr(args, "sample_negative_prompt", ""),
+                    sample_subdir=getattr(args, "sample_subdir", "samples"),
+                )
+            accelerator.wait_for_everyone()
 
 
 def launch_data_process_task(

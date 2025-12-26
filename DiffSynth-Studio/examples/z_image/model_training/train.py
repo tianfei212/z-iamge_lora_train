@@ -91,6 +91,45 @@ class ZImageTrainingModule(DiffusionTrainingModule):
             inputs = self.pipe.unit_runner(unit, self.pipe, *inputs)
         loss = self.task_to_loss[self.task](self.pipe, *inputs)
         return loss
+    
+    def sample_and_save(
+        self,
+        dataset,
+        output_path: str,
+        step: int,
+        sample_num_images: int = 10,
+        sample_seed: int = 0,
+        sample_inference_steps: int = 8,
+        sample_denoising_strength: float = 1.0,
+        sample_cfg_scale: float = 1.0,
+        sample_negative_prompt: str = "",
+        sample_subdir: str = "samples",
+    ):
+        if step is None:
+            return
+        folder = os.path.join(output_path, sample_subdir, f"step-{step}")
+        os.makedirs(folder, exist_ok=True)
+        total = min(int(sample_num_images), len(dataset)) if hasattr(dataset, "__len__") else int(sample_num_images)
+        for i in range(total):
+            data = dataset[i]
+            prompt = str(data[self.prompt_key])
+            input_image = data[self.image_key]
+            height = input_image.size[1]
+            width = input_image.size[0]
+            image = self.pipe(
+                prompt=prompt,
+                negative_prompt=sample_negative_prompt,
+                cfg_scale=sample_cfg_scale,
+                input_image=input_image,
+                denoising_strength=sample_denoising_strength,
+                height=height,
+                width=width,
+                seed=sample_seed + i,
+                rand_device=self.pipe.device,
+                num_inference_steps=sample_inference_steps,
+            )
+            image.save(os.path.join(folder, f"{i:03d}.png"))
+        self.pipe.scheduler.set_timesteps(1000, training=True)
 
 
 def z_image_parser():
@@ -100,6 +139,13 @@ def z_image_parser():
     parser.add_argument("--tokenizer_path", type=str, default=None, help="Path to tokenizer.")
     parser.add_argument("--image_key", type=str, default="image", help="Metadata key for the input image path.")
     parser.add_argument("--prompt_key", type=str, default="prompt", help="Metadata key for the prompt.")
+    parser.add_argument("--sample_num_images", type=int, default=10, help="Number of sample images per checkpoint. Set 0 to disable.")
+    parser.add_argument("--sample_seed", type=int, default=0, help="Seed base for sampling. Actual seed is seed + index.")
+    parser.add_argument("--sample_inference_steps", type=int, default=8, help="Number of inference steps for sampling.")
+    parser.add_argument("--sample_denoising_strength", type=float, default=1.0, help="Denoising strength for sampling.")
+    parser.add_argument("--sample_cfg_scale", type=float, default=1.0, help="CFG scale for sampling.")
+    parser.add_argument("--sample_negative_prompt", type=str, default="", help="Negative prompt for sampling.")
+    parser.add_argument("--sample_subdir", type=str, default="samples", help="Subdir under output_path for saving samples.")
     parser.set_defaults(data_file_keys="image")
     return parser
 
