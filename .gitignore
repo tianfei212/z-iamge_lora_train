@@ -1,7 +1,9 @@
 /data/
 /output/
 /models/*
+!/models/Z-Image-Turbo/
 !/models/Z-Image-Turbo/**
+!/models/Z-Image-Turbo-DistillPatch/
 !/models/Z-Image-Turbo-DistillPatch/**
 __pycache__/
 *.pyc
