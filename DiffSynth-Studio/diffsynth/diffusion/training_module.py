@@ -187,9 +187,13 @@ class DiffusionTrainingModule(torch.nn.Module):
         if lora_base_model is not None:
             models_require_backward += [lora_base_model]
         if task.endswith(":data_process"):
-            _, pipe.units = pipe.split_pipeline_units(models_require_backward)
+            original_units = pipe.units
+            _, unrelated_units = pipe.split_pipeline_units(models_require_backward)
+            pipe.units = unrelated_units if len(unrelated_units) > 0 else original_units
         elif task.endswith(":train"):
-            pipe.units, _ = pipe.split_pipeline_units(models_require_backward)
+            original_units = pipe.units
+            related_units, _ = pipe.split_pipeline_units(models_require_backward)
+            pipe.units = related_units if len(related_units) > 0 else original_units
         return pipe
     
     def parse_extra_inputs(self, data, extra_inputs, inputs_shared):

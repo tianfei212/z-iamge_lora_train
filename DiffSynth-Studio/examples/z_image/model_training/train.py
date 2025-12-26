@@ -20,6 +20,8 @@ class ZImageTrainingModule(DiffusionTrainingModule):
         offload_models=None,
         device="cpu",
         task="sft",
+        image_key="image",
+        prompt_key="prompt",
     ):
         super().__init__()
         # Load models
@@ -42,6 +44,8 @@ class ZImageTrainingModule(DiffusionTrainingModule):
         self.extra_inputs = extra_inputs.split(",") if extra_inputs is not None else []
         self.fp8_models = fp8_models
         self.task = task
+        self.image_key = image_key
+        self.prompt_key = prompt_key
         self.task_to_loss = {
             "sft:data_process": lambda pipe, *args: args,
             "direct_distill:data_process": lambda pipe, *args: args,
@@ -59,14 +63,14 @@ class ZImageTrainingModule(DiffusionTrainingModule):
             self.pipe_teacher.requires_grad_(False)
         
     def get_pipeline_inputs(self, data):
-        inputs_posi = {"prompt": data["prompt"]}
+        inputs_posi = {"prompt": data[self.prompt_key]}
         inputs_nega = {"negative_prompt": ""}
         inputs_shared = {
             # Assume you are using this pipeline for inference,
             # please fill in the input parameters.
-            "input_image": data["image"],
-            "height": data["image"].size[1],
-            "width": data["image"].size[0],
+            "input_image": data[self.image_key],
+            "height": data[self.image_key].size[1],
+            "width": data[self.image_key].size[0],
             # Please do not modify the following parameters
             # unless you clearly know what this will cause.
             "cfg_scale": 1,
@@ -94,6 +98,9 @@ def z_image_parser():
     parser = add_general_config(parser)
     parser = add_image_size_config(parser)
     parser.add_argument("--tokenizer_path", type=str, default=None, help="Path to tokenizer.")
+    parser.add_argument("--image_key", type=str, default="image", help="Metadata key for the input image path.")
+    parser.add_argument("--prompt_key", type=str, default="prompt", help="Metadata key for the prompt.")
+    parser.set_defaults(data_file_keys="image")
     return parser
 
 
@@ -135,6 +142,8 @@ if __name__ == "__main__":
         fp8_models=args.fp8_models,
         offload_models=args.offload_models,
         task=args.task,
+        image_key=args.image_key,
+        prompt_key=args.prompt_key,
         device=accelerator.device,
     )
     model_logger = ModelLogger(
