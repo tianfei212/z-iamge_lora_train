@@ -1,6 +1,6 @@
-data/
-models/
-output/
+/data/
+/models/
+/output/
 __pycache__/
 *.pyc
 .trae/
