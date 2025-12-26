@@ -1,8 +1,15 @@
 /data/
-/models/
 /output/
+/models/*
+!/models/Z-Image-Turbo/**
+!/models/Z-Image-Turbo-DistillPatch/**
 __pycache__/
 *.pyc
+*.safetensors
+*.ckpt
+*.pth
+*.pt
+*.bin
 .trae/
 .vscode/
 .DS_Store
